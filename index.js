@@ -3,10 +3,11 @@ const bodyParser = require("body-parser");
 const fs = require("fs").promises;  // Use the promisified version of fs
 const { exec } = require("child_process");
 const cors = require('cors');
+const morgan = require("morgan");
 
 const app = express();
 app.use(bodyParser.json());
-
+app.use(morgan("dev"));
 const port = process.env.PORT || 3010;
 const corsOptions = {
     origin: 'http://localhost:3000',
@@ -19,25 +20,25 @@ app.listen(port, () => {
 });
 
 const languagesCompiler = {
-    "c++": "g++",
+    "C++": "g++",
     "java": "javac",
     "python": "python",
     "javascript": "node",
 };
 
 const fileExtensions = {
-    "c++": "cpp",
+    "C++": "cpp",
     "java": "java",
     "python": "py",
-    "javascript": "js",
+    "JS": "js",
 };
 
 const getExecutionCommand = (language, filename, input) => {
     const compiler = languagesCompiler[language];
 
     switch (language) {
-        case "c++":
-            return `./a.out < input.txt > output.txt`;
+        case "C++":
+            return `g++ ${filename}.cpp -o ${filename} && ./a < input.txt > output.txt`;
         case "java":
             return `java ${filename.replace(".java", "")} < input.txt > output.txt`;
         case "python":
@@ -73,10 +74,9 @@ const executeCodeAsync = async (command, filename) => {
                         reject(new Error(stderr));
                     } else {
                         //add the stdout in the output.txt file
-                        console.log("output.txt file created");
-                        console.log(stdout);
-
+                      
                         resolve(stdout);
+
                     }
                 })
                 .catch((unlinkError) => {
@@ -90,7 +90,7 @@ const executeCodeAsync = async (command, filename) => {
 
 app.post("/api/code", async (req, res) => {
     const { value, language, input } = req.body;
-
+    console.log(req.body);
     // Error handling
     if (!language || !value) {
         return res.status(400).json({ error: "Language and code are required fields" });
@@ -114,8 +114,9 @@ app.post("/api/code", async (req, res) => {
 
         // Execute the code
         const executionCommand = getExecutionCommand(language, filename, input);
+        console.log(executionCommand);
         const output = await executeCodeAsync(executionCommand, filename);
-
+      
         // Read the output file
         const outputFileContent = await fs.readFile(outputfile, "utf-8");
         res.json({ output: outputFileContent });
@@ -125,24 +126,6 @@ app.post("/api/code", async (req, res) => {
     }
 });
 
-// Additional Endpoint: Fetch content of input.txt
-app.get("/api/input", async (req, res) => {
-    try {
-        const content = await fs.readFile("input.txt", "utf-8");
-        res.json({ content });
-    } catch (error) {
-        console.error(error.message);
-        res.status(500).json({ error: "Could not read input.txt" });
-    }
-});
 
-// Additional Endpoint: Fetch content of output.txt
-app.get("/api/output", async (req, res) => {
-    try {
-        const content = await fs.readFile("output.txt", "utf-8");
-        res.json({ content });
-    } catch (error) {
-        console.error(error.message);
-        res.status(500).json({ error: "Could not read output.txt" });
-    }
-});
+
+

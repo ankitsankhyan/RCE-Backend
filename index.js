@@ -36,7 +36,7 @@ const getExecutionCommand = (language, filename) => {
     const compiler = languagesCompiler[language];
 
     switch (language) {
-        case "c++":
+        case "cpp":
             return `${compiler} ${filename} -o ${filename.replace(".cpp","")}
             && ./${filename.replace(".cpp","")} < input.txt > output.txt`;
         case "java":

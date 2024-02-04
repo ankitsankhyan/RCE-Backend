@@ -19,27 +19,29 @@ app.listen(port, () => {
 });
 
 const languagesCompiler = {
-    "c++": "g++",
+    "cpp": "g++",
     "java": "javac",
     "python": "python",
     "javascript": "node",
 };
 
 const fileExtensions = {
-    "c++": "cpp",
+    "cpp": "cpp",
     "java": "java",
     "python": "py",
     "javascript": "js",
 };
 
-const getExecutionCommand = (language, filename, input) => {
+const getExecutionCommand = (language, filename) => {
     const compiler = languagesCompiler[language];
 
     switch (language) {
         case "c++":
-            return `./a.out < input.txt > output.txt`;
+            return `${compiler} ${filename} -o ${filename.replace(".cpp","")}
+            && ./${filename.replace(".cpp","")} < input.txt > output.txt`;
         case "java":
-            return `java ${filename.replace(".java", "")} < input.txt > output.txt`;
+            return `${compiler} ${filename} -o ${filename.replace(".java","")}
+            && ./${filename.replace(".java","")} < input.txt > output.txt`;
         case "python":
             return `python ${filename} < input.txt > output.txt`;
         case "javascript":
@@ -59,34 +61,46 @@ const writeFileAsync = async (filename, value) => {
     }
 };
 
-const executeCodeAsync = async (command, filename) => {
+const executeCodeAsync = async (command, filename, inputfile="input.txt", outputfile="output.txt", timeout = 5000, maxOutputLength = 1024) => {
     return new Promise((resolve, reject) => {
-        exec(command, (error, stdout, stderr) => {
-            // Remove the temporary file
-            fs.unlink(filename)
-                .then(() => {
-                    if (error) {
-                        console.error(`Error executing command: ${command}`);
-                        console.error(error);
-                        reject(new Error("Could not run code"));
-                    } else if (stderr) {
-                        reject(new Error(stderr));
-                    } else {
-                        //add the stdout in the output.txt file
-                        console.log("output.txt file created");
-                        console.log(stdout);
+        const process = exec(command, async (error, stdout, stderr) => {
+            clearTimeout(timeoutId); // Clear the timeout if the process completes before the timeout
 
-                        resolve(stdout);
-                    }
-                })
-                .catch((unlinkError) => {
-                    console.error(`Error deleting file: ${filename}`);
-                    console.error(unlinkError);
-                    reject(new Error("Could not delete file"));
-                });
+            try {
+                await fs.unlink(filename);
+                await fs.unlink(inputfile);
+            } catch (unlinkError) {
+                console.error(`Error deleting files: ${filename}, ${inputfile}`);
+                console.error(unlinkError);
+                reject(new Error("Could not delete files"));
+                return;
+            }
+
+            if (error) {
+                console.error(`Error executing command: ${command}`);
+                console.error(error);
+                reject(new Error("Could not run code"));
+            } else if (stderr) {
+                reject(new Error(stderr));
+            } else {
+                console.log("output.txt file created");
+
+                // Limit output length
+                const limitedOutput = stdout.substring(0, maxOutputLength);
+                console.log(limitedOutput);
+                resolve(limitedOutput);
+            }
         });
+
+        // Set a timeout for the execution
+        const timeoutId = setTimeout(() => {
+            process.kill("SIGKILL"); // Terminate the process
+            reject(new Error("Code execution timed out"));
+        }, timeout);
     });
 };
+
+
 
 app.post("/api/code", async (req, res) => {
     const { value, language, input } = req.body;

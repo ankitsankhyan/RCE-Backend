@@ -19,32 +19,32 @@ app.listen(port, () => {
 });
 
 const languagesCompiler = {
-    "cpp": "g++",
+    "C++": "g++",
     "java": "javac",
     "python": "python",
-    "javascript": "node",
+    "JS": "node",
 };
 
 const fileExtensions = {
-    "cpp": "cpp",
+    "C++": "cpp",
     "java": "java",
     "python": "py",
-    "javascript": "js",
+    "JS": "js",
 };
 
-const getExecutionCommand = (language, filename) => {
+const getExecutionCommand = (language, filename, inputfile , outputfile) => {
     const compiler = languagesCompiler[language];
 
     switch (language) {
-        case "cpp":
+        case "C++":
             return `${compiler} ${filename} -o ${filename.replace(".cpp","")}
-            && ./${filename.replace(".cpp","")} < input.txt > output.txt`;
+            && ./${filename.replace(".cpp",".exe")} < ${inputfile} > ${outputfile}`;
         case "java":
             return `${compiler} ${filename} -o ${filename.replace(".java","")}
             && ./${filename.replace(".java","")} < input.txt > output.txt`;
         case "python":
             return `python ${filename} < input.txt > output.txt`;
-        case "javascript":
+        case "JS":
             return `node ${filename} < input.txt > output.txt`;
         default:
             return ""; // Handle unsupported languages
@@ -67,6 +67,7 @@ const executeCodeAsync = async (command, filename, inputfile="input.txt", output
             clearTimeout(timeoutId); // Clear the timeout if the process completes before the timeout
 
             try {
+                console.log(filename, 'is filename');
                 await fs.unlink(filename);
                 await fs.unlink(inputfile);
             } catch (unlinkError) {
@@ -79,13 +80,14 @@ const executeCodeAsync = async (command, filename, inputfile="input.txt", output
             if (error) {
                 console.error(`Error executing command: ${command}`);
                 console.error(error);
-                reject(new Error("Could not run code"));
+                reject(new Error(error.message));
             } else if (stderr) {
                 reject(new Error(stderr));
             } else {
-                console.log("output.txt file created");
+               
 
                 // Limit output length
+                // console.log(stdout, 'is stdout ++++++++++++++++++++++++++++++++++++++++++++++++++++++')
                 const limitedOutput = stdout.substring(0, maxOutputLength);
                 console.log(limitedOutput);
                 resolve(limitedOutput);
@@ -104,7 +106,7 @@ const executeCodeAsync = async (command, filename, inputfile="input.txt", output
 
 app.post("/api/code", async (req, res) => {
     const { value, language, input } = req.body;
-
+    
     // Error handling
     if (!language || !value) {
         return res.status(400).json({ error: "Language and code are required fields" });
@@ -125,38 +127,27 @@ app.post("/api/code", async (req, res) => {
         await writeFileAsync(filename, value);
         //write the input in input.txt file
         await writeFileAsync(inputfile, input);
-
+         
         // Execute the code
-        const executionCommand = getExecutionCommand(language, filename, input);
-        const output = await executeCodeAsync(executionCommand, filename);
-
+       
+        const executionCommand = getExecutionCommand(language, filename, inputfile, outputfile );
+        console.log(executionCommand, 'is execution command')
+      await executeCodeAsync(executionCommand, filename);
+   
         // Read the output file
         const outputFileContent = await fs.readFile(outputfile, "utf-8");
+        // clear output
+        fs.truncate(outputfile, 0, function(){console.log('done')} );
+        if(language == 'C++'){
+            fs.unlink(filename.replace(".cpp",".exe"));
+        }
+      
+        // fs.unlink(filename);
         res.json({ output: outputFileContent });
     } catch (error) {
-        console.error(error.message);
+        console.log(error.message, 'is error');
         res.status(500).json({ error: error.message });
     }
 });
 
-// Additional Endpoint: Fetch content of input.txt
-app.get("/api/input", async (req, res) => {
-    try {
-        const content = await fs.readFile("input.txt", "utf-8");
-        res.json({ content });
-    } catch (error) {
-        console.error(error.message);
-        res.status(500).json({ error: "Could not read input.txt" });
-    }
-});
 
-// Additional Endpoint: Fetch content of output.txt
-app.get("/api/output", async (req, res) => {
-    try {
-        const content = await fs.readFile("output.txt", "utf-8");
-        res.json({ content });
-    } catch (error) {
-        console.error(error.message);
-        res.status(500).json({ error: "Could not read output.txt" });
-    }
-});

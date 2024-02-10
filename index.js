@@ -65,7 +65,7 @@ const executeCodeAsync = async (command, filename, inputfile="input.txt", output
     return new Promise((resolve, reject) => {
         const process = exec(command, async (error, stdout, stderr) => {
             clearTimeout(timeoutId); // Clear the timeout if the process completes before the timeout
-
+            console.log(stdout, 'is stdout');
             try {
                 console.log(filename, 'is filename');
                 await fs.unlink(filename);
@@ -117,7 +117,7 @@ app.post("/api/code", async (req, res) => {
     }
 
     // Create a unique filename with the appropriate extension
-    const filename = `code_${Date.now()}.${fileExtensions[language]}`;
+    var filename = `code_${Date.now()}.${fileExtensions[language]}`;
     //create a input.txt file
     const inputfile = `input.txt`;
     //create a output.txt file
@@ -135,12 +135,20 @@ app.post("/api/code", async (req, res) => {
       await executeCodeAsync(executionCommand, filename);
    
         // Read the output file
+        if(language == 'C++'){
+            filename = filename.replace(".cpp",".exe");
+            const currentDirectory = process.cwd();
+           
+            var command = `${filename}  > ${outputfile}`;
+            await writeFileAsync(inputfile, input);
+           
+            await executeCodeAsync(command, filename);
+           
+        }
         const outputFileContent = await fs.readFile(outputfile, "utf-8");
         // clear output
         fs.truncate(outputfile, 0, function(){console.log('done')} );
-        if(language == 'C++'){
-            fs.unlink(filename.replace(".cpp",".exe"));
-        }
+     
       
         // fs.unlink(filename);
         res.json({ output: outputFileContent });
